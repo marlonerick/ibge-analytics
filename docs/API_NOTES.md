@@ -131,6 +131,72 @@ médias — preferimos nulo explícito.
 
 ---
 
+## 7. O VAB setorial para dois anos antes do PIB total
+
+O agregado **5938** publica, no mesmo lugar, o PIB total (variável 37) e o valor
+adicionado por setor (513, 517, 6575, 525). Eles **não têm a mesma cobertura**:
+
+| variável | último ano publicado |
+|---|---|
+| 37 — PIB a preços correntes | **2023** |
+| 513/517/6575/525 — VAB setorial | **2021** |
+
+Em 2022 e 2023 as variáveis setoriais vêm presentes na resposta e **inteiramente
+nulas**, em todos os níveis territoriais (N1 a N6). Não há erro, não há aviso.
+
+O sintoma é traiçoeiro: quem toma `max(ano)` uma vez só e usa esse ano para
+tudo — o caminho óbvio — monta um painel em que o PIB aparece e a estrutura
+setorial inteira é nula. Foi exatamente o que aconteceu na primeira versão de
+`analytics.mv_painel_municipio`, e é o que ainda acontece nas colunas `vab_*` de
+`data/processed/painel_municipios.parquet` (elas chegam com dtype `object`
+preenchido de `None` — o rastro típico de uma coluna que nunca teve valor).
+
+As views resolvem como o pipeline já resolvia o PIB per capita: cada bloco usa o
+ano mais recente em que **o seu** dado existe, e a view grava qual foi.
+
+```sql
+ano_pib AS (SELECT max(ano) FROM ibge.fato_pib_municipio),
+ano_vab AS (SELECT max(ano) FROM ibge.fato_pib_municipio
+             WHERE vab_industria IS NOT NULL)
+```
+
+O painel expõe `ano_pib` **e** `ano_vab` lado a lado (2023 e 2021), para que a
+diferença de referência fique visível em vez de implícita.
+
+---
+
+## 8. PIB municipal negativo é dado válido
+
+`ibge.fato_pib_municipio` não tem `CHECK (pib_mil_reais > 0)`, de propósito.
+
+**Guamaré/RN, 2012**: PIB de −19.046 mil reais, com VAB industrial de −417.323.
+Município de refinaria — o valor adicionado de um setor fica negativo quando o
+consumo intermediário supera a produção no ano.
+
+A constraint "PIB positivo" parece óbvia e recusaria dado oficial correto. A
+verificação de plausibilidade ficou em `sql/analytics/qualidade.sql`, onde pode
+distinguir o **negativo** (legítimo, esperado até 5 casos) do **zero** (que seria
+falha de carga).
+
+---
+
+## 9. A densidade publicada tem 2 casas — e isso não é divergência
+
+O Censo 2022 publica a densidade já calculada (variável 614). Comparar com
+população ÷ área recalculada é uma boa verificação de carga, mas com tolerância
+**apenas relativa** ela acusa falso positivo nos municípios mais vazios do país:
+
+| município | população ÷ área | publicada | diferença relativa |
+|---|---|---|---|
+| Barcelos - AM | 0,1538 | 0,15 | 2,5% |
+| Mateiros - TO | 0,2866 | 0,29 | 1,2% |
+
+É arredondamento da publicação, não erro. `qualidade.sql` exige as duas
+condições — 1% relativo **e** 0,005 absoluto (meia casa decimal) — para separar
+precisão de publicação de erro de extração.
+
+---
+
 ## Agregados usados
 
 | id | nome | variáveis | níveis | período |

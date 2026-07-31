@@ -15,3 +15,6 @@ data/geo/
 reports/figures/*.html
 reports/*.html
 !reports/.gitkeep
+
+# Credenciais do banco (ibge-db) — nunca versionar
+.env

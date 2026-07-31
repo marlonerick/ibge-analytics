@@ -16,6 +16,8 @@ dependencies = [
     "folium>=0.15",
     "streamlit>=1.32",
     "matplotlib>=3.8",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +25,7 @@ dev = ["pytest>=8.0", "jupyter", "nbformat", "nbconvert"]
 
 [project.scripts]
 ibge-etl = "ibge_analytics.etl.pipeline:main"
+ibge-db = "ibge_analytics.db.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -30,4 +33,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-markers = ["network: testes que fazem chamadas reais à API do IBGE"]
+markers = [
+    "network: testes que fazem chamadas reais à API do IBGE",
+    "postgres: testes que exigem um PostgreSQL alcançável (ver IBGE_DATABASE_URL)",
+]

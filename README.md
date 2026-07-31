@@ -19,13 +19,14 @@ baixados na hora.
 | Densidade demográfica e ocupação do território | `analysis/densidade.py` · notebook 04 |
 | Comparação entre as cinco regiões | notebook 05 |
 | Mapas coropléticos com GeoJSON | `viz/maps.py` · página *Mapas* do dashboard |
+| Concentração, especialização setorial e ranking em SQL | `sql/analytics/` · `ibge-db query` |
 
 Alguns resultados que os dados mostram:
 
 - **29% dos municípios perderam população** entre 2001 e 2025, mesmo com o país
   crescendo no agregado.
 - **Metade do PIB nacional é produzida em 84 municípios** — 1,5% do total.
-- **Metade da população vive em 386 municípios que ocupam 1,4% do território.**
+- **Metade da população vive em 197 municípios que ocupam 3,7% do território.**
 - 44% dos municípios têm menos de 10 mil habitantes, e juntos somam 6% da
   população.
 
@@ -64,12 +65,31 @@ python -m ibge_analytics.etl.pipeline --etapas populacao pib
 python -m ibge_analytics.etl.pipeline -v                     # log detalhado
 ```
 
+## Banco de dados
+
+O mesmo dado, persistido em PostgreSQL, com a camada analítica em SQL.
+
+```bash
+cp .env.example .env          # preencha PGPASSWORD (porta 5432)
+ibge-db sync                  # cria, carrega e verifica — ~10 s
+
+ibge-db query concentracao
+ibge-db query top_municipios --metrica pib --limite 10
+ibge-db query serie_uf --uf SP --csv serie-sp.csv
+```
+
+14 tabelas · 13 índices · 7 views · 2 materializadas · 11 consultas analíticas ·
+207.497 linhas. Detalhes em **[docs/BANCO.md](docs/BANCO.md)**.
+
 ## Testes
 
 ```bash
-pytest              # 50 testes offline
+pytest              # 82 testes offline
 pytest -m network   # + 3 testes contra a API real
+pytest -m postgres  # + 6 testes de integração com o banco
 ```
+
+Os testes de banco são pulados automaticamente quando não há conexão.
 
 ---
 
@@ -89,18 +109,31 @@ ibge-analytics/
 │   │   ├── transform.py       # métricas derivadas, sem I/O
 │   │   └── pipeline.py        # orquestração → data/processed/
 │   ├── analysis/              # populacao · crescimento · pib · densidade
+│   ├── db/
+│   │   ├── engine.py          # conexão (.env / libpq), leitura dos .sql
+│   │   ├── schema.py          # aplica o DDL, refresh das materializadas
+│   │   ├── load.py            # Parquet -> Postgres via COPY, numa transação
+│   │   ├── queries.py         # registro das consultas analíticas
+│   │   └── cli.py             # `ibge-db`
 │   ├── viz/
 │   │   ├── theme.py           # paleta validada, tokens, formatação pt-BR
 │   │   ├── charts.py          # gráficos Plotly
 │   │   └── maps.py            # coropléticos Plotly + Folium
 │   └── utils/io.py            # leitura das tabelas processadas
+├── sql/
+│   ├── 01_schema.sql          # tabelas, chaves, constraints
+│   ├── 02_indexes.sql         # índices, cada um com a consulta que atende
+│   ├── 03_views.sql           # camada analítica
+│   └── analytics/             # 11 consultas nomeadas e parametrizadas
 ├── dashboard/                 # app Streamlit (5 páginas)
 ├── notebooks/                 # 5 notebooks gerados por script
 ├── scripts/                   # build_report.py · build_notebooks.py
 ├── data/{raw,interim,processed,geo}/
 ├── reports/                   # relatorio.html + figuras
-├── tests/                     # 53 testes
-└── docs/API_NOTES.md          # comportamentos reais das APIs do IBGE
+├── tests/                     # 88 testes
+└── docs/
+    ├── API_NOTES.md           # comportamentos reais das APIs do IBGE
+    └── BANCO.md               # modelo, índices e consultas do PostgreSQL
 ```
 
 ---
@@ -141,6 +174,19 @@ dados são anuais. O cache tem TTL de 30 dias e escrita atômica.
 winding esférico — o oposto do que o IBGE (e o RFC 7946) entrega. Sem inverter,
 o mapa sai com a projeção inteira preenchida, *sem erro nenhum*.
 
+**O banco guarda o cru; o SQL calcula o resto.** `data/processed/` é
+denormalizado — repete nome de município, UF e região em cada linha de fato.
+No PostgreSQL os fatos entram na granularidade em que o SIDRA publica, e toda
+métrica derivada é view. Recarregar os fatos não deixa nenhum número calculado
+desatualizado, porque nenhum número calculado está gravado.
+
+**Cada indicador usa o ano do seu próprio dado.** Além do PIB per capita, o
+mesmo vale para a estrutura setorial: o agregado 5938 publica o PIB total até
+2023 mas o valor adicionado por setor só até 2021, e as variáveis setoriais vêm
+presentes e nulas nos dois últimos anos. Tomar `max(ano)` uma vez para tudo
+zeraria a estrutura setorial inteira, calada. O painel expõe `ano_pib` e
+`ano_vab` lado a lado.
+
 **Cor por último, e validada.** A paleta é a de referência do sistema de design,
 usada sem alteração de hex, com as restrições que a validação dela impõe: as
 formas que comparam todos os pares entre si (dispersão) são facetadas em vez de
@@ -148,4 +194,5 @@ coloridas, e as cores de menor contraste sempre vêm acompanhadas de rótulo
 direto ou tabela. Nenhuma leitura depende só da cor.
 
 Os detalhes de cada peculiaridade das APIs estão em
-**[docs/API_NOTES.md](docs/API_NOTES.md)**.
+**[docs/API_NOTES.md](docs/API_NOTES.md)**; as decisões de modelagem e os
+índices, em **[docs/BANCO.md](docs/BANCO.md)**.
