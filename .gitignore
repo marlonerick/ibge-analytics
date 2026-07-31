@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Dados: raw/interim são reproduzíveis pelo pipeline; processed é versionável se pequeno.
+data/raw/
+data/interim/
+data/geo/
+.cache/
+
+reports/figures/*.html
+reports/*.html
+!reports/.gitkeep

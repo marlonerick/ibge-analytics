@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ibge-analytics"
+version = "0.1.0"
+description = "Pipeline de dados e análise territorial do Brasil sobre as APIs públicas do IBGE (SIDRA v3, Localidades v1, Malhas v3)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.1",
+    "pyarrow>=14",
+    "plotly>=5.20",
+    "folium>=0.15",
+    "streamlit>=1.32",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "jupyter", "nbformat", "nbconvert"]
+
+[project.scripts]
+ibge-etl = "ibge_analytics.etl.pipeline:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["network: testes que fazem chamadas reais à API do IBGE"]
