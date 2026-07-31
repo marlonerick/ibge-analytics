@@ -11,7 +11,9 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -47,7 +49,48 @@ body { margin:0; background:var(--plano); color:var(--tinta);
 .envelope { max-width:1080px; margin:0 auto; padding:48px 24px 96px; }
 header { border-bottom:1px solid var(--borda); padding-bottom:24px; margin-bottom:40px; }
 h1 { font-size:34px; margin:0 0 8px; letter-spacing:-.02em; }
-h2 { font-size:23px; margin:56px 0 6px; letter-spacing:-.01em; }
+h2 { font-size:23px; margin:56px 0 6px; letter-spacing:-.01em;
+     /* Compensa a navbar fixa: sem isto o âncora para com o título escondido. */
+     scroll-margin-top:64px; }
+
+/* ---------------------------------------------------------------- navbar --- */
+.navbar { position:sticky; top:0; z-index:50; background:var(--superficie);
+          border-bottom:1px solid var(--borda); }
+@supports (backdrop-filter:blur(8px)) {
+  .navbar { background:color-mix(in srgb, var(--superficie) 88%, transparent);
+            backdrop-filter:blur(8px); }
+}
+.navbar-in { max-width:1080px; margin:0 auto; padding:0 24px;
+             display:flex; align-items:center; gap:20px; }
+.marca { font-weight:600; font-size:14px; letter-spacing:-.01em; white-space:nowrap;
+         padding:13px 0; color:var(--tinta); text-decoration:none; }
+.marca:hover { color:var(--azul); }
+.navbar ul { list-style:none; display:flex; gap:2px; margin:0; padding:0;
+             overflow-x:auto; scrollbar-width:none; }
+.navbar ul::-webkit-scrollbar { display:none; }
+.navbar a.item { display:block; padding:13px 11px; font-size:13.5px; white-space:nowrap;
+                 color:var(--tinta2); text-decoration:none;
+                 border-bottom:2px solid transparent; }
+.navbar a.item:hover { color:var(--tinta); }
+.navbar a.item[aria-current="true"] { color:var(--azul); border-bottom-color:var(--azul); }
+.navbar a.item:focus-visible { outline:2px solid var(--azul); outline-offset:-4px; }
+/* Em tela estreita a marca sai: o espaço vale mais para os links. */
+@media (max-width:640px) { .marca { display:none; } .navbar-in { padding:0 12px; } }
+
+.ao-topo { position:fixed; right:20px; bottom:20px; z-index:40;
+           width:40px; height:40px; border-radius:50%; cursor:pointer;
+           border:1px solid var(--borda); background:var(--superficie);
+           color:var(--tinta2); font-size:16px; line-height:1;
+           opacity:0; pointer-events:none; transition:opacity .18s ease; }
+.ao-topo.ver { opacity:1; pointer-events:auto; }
+.ao-topo:hover { color:var(--azul); }
+.ao-topo:focus-visible { outline:2px solid var(--azul); outline-offset:2px; }
+
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  .ao-topo { transition:none; }
+}
 h3 { font-size:16px; margin:32px 0 8px; color:var(--tinta2); font-weight:600; }
 p  { color:var(--tinta2); margin:8px 0 16px; }
 .sub { color:var(--suave); font-size:14px; }
@@ -77,16 +120,93 @@ code { background:var(--grade); padding:2px 6px; border-radius:4px; font-size:12
 """
 
 
+def _slug(texto: str) -> str:
+    """Identificador de âncora a partir do título da seção.
+
+    Sem acento e sem espaço, para que o link fique legível na barra de
+    endereços — `#crescimento-populacional` e não `#se%C3%A7%C3%A3o-3`.
+    """
+    sem_acento = "".join(
+        c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c)
+    )
+    return re.sub(r"[^a-z0-9]+", "-", sem_acento.lower()).strip("-")
+
+
+#: Realce da seção atual e botão de voltar ao topo.
+#:
+#: O realce vem da posição de rolagem, e não de IntersectionObserver: as seções
+#: aqui têm alturas muito desiguais — um mapa Plotly ocupa 680px, um destaque
+#: ocupa três linhas — e observar a entrada de cada uma faria a marcação pular
+#: para a frente e para trás. Comparar `offsetTop` com a rolagem atual sempre
+#: aponta a seção em que o leitor de fato está.
+JS = """
+(function () {
+  var titulos = Array.prototype.slice.call(document.querySelectorAll('h2[id]'));
+  var links = {};
+  Array.prototype.forEach.call(document.querySelectorAll('.navbar a.item'), function (a) {
+    links[a.getAttribute('href').slice(1)] = a;
+  });
+  var aoTopo = document.querySelector('.ao-topo');
+  var agendado = false;
+
+  function atualizar() {
+    agendado = false;
+    var y = window.scrollY + 80;
+    var atual = titulos.length ? titulos[0].id : null;
+    for (var i = 0; i < titulos.length; i++) {
+      if (titulos[i].offsetTop <= y) atual = titulos[i].id;
+    }
+    // Perto do fim da página a última seção é a que o leitor está vendo, mesmo
+    // que seu título já tenha passado bem para cima.
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 80 && titulos.length) {
+      atual = titulos[titulos.length - 1].id;
+    }
+    for (var id in links) {
+      if (id === atual) links[id].setAttribute('aria-current', 'true');
+      else links[id].removeAttribute('aria-current');
+    }
+    aoTopo.classList.toggle('ver', window.scrollY > 400);
+  }
+
+  window.addEventListener('scroll', function () {
+    if (!agendado) { agendado = true; requestAnimationFrame(atualizar); }
+  }, { passive: true });
+  window.addEventListener('resize', atualizar, { passive: true });
+
+  aoTopo.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior:
+      matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  });
+
+  atualizar();
+})();
+"""
+
+
 class Relatorio:
+    #: Rótulos mais curtos para a navbar, onde o espaço é disputado. A chave é o
+    #: slug; um título sem entrada aqui aparece como está.
+    ROTULOS_CURTOS = {
+        "crescimento-populacional": "Crescimento",
+        "densidade-demografica": "Densidade",
+        "as-cinco-regioes": "Regiões",
+    }
+
     def __init__(self) -> None:
         self.partes: list[str] = []
         self.primeiro_grafico = True
+        #: (slug, rótulo) de cada seção, na ordem em que aparecem. A navbar é
+        #: montada daqui, e não de uma lista à parte — assim uma seção nova
+        #: entra no menu sem que ninguém precise lembrar de atualizá-lo.
+        self.secoes: list[tuple[str, str]] = []
 
     def html(self, fragmento: str) -> None:
         self.partes.append(fragmento)
 
     def titulo(self, texto: str) -> None:
-        self.html(f"<h2>{texto}</h2>")
+        slug = _slug(texto)
+        self.secoes.append((slug, self.ROTULOS_CURTOS.get(slug, texto)))
+        self.html(f'<h2 id="{slug}">{texto}</h2>')
 
     def subtitulo(self, texto: str) -> None:
         self.html(f"<h3>{texto}</h3>")
@@ -123,12 +243,27 @@ class Relatorio:
         if legenda:
             self.html(f'<p class="sub">{legenda}</p>')
 
-    def renderizar(self, titulo: str) -> str:
+    def navbar(self, marca: str) -> str:
+        itens = "".join(
+            f'<li><a class="item" href="#{slug}">{rotulo}</a></li>'
+            for slug, rotulo in self.secoes
+        )
+        return (
+            '<nav class="navbar" aria-label="Seções do relatório"><div class="navbar-in">'
+            f'<a class="marca" href="#topo">{marca}</a>'
+            f"<ul>{itens}</ul>"
+            "</div></nav>"
+        )
+
+    def renderizar(self, titulo: str, marca: str = "Brasil em números") -> str:
         return (
             "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{titulo}</title><style>{CSS}</style></head><body>"
-            f"<div class='envelope'>{''.join(self.partes)}</div></body></html>"
+            f"<title>{titulo}</title><style>{CSS}</style></head><body id='topo'>"
+            f"{self.navbar(marca)}"
+            f"<div class='envelope'>{''.join(self.partes)}</div>"
+            '<button class="ao-topo" type="button" aria-label="Voltar ao topo">&uarr;</button>'
+            f"<script>{JS}</script></body></html>"
         )
 
 

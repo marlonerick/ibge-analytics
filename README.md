@@ -84,7 +84,7 @@ ibge-db query serie_uf --uf SP --csv serie-sp.csv
 ## Testes
 
 ```bash
-pytest              # 82 testes offline
+pytest              # 102 testes offline
 pytest -m network   # + 3 testes contra a API real
 pytest -m postgres  # + 6 testes de integração com o banco
 ```
@@ -130,7 +130,7 @@ ibge-analytics/
 ├── scripts/                   # build_report.py · build_notebooks.py
 ├── data/{raw,interim,processed,geo}/
 ├── reports/                   # relatorio.html + figuras
-├── tests/                     # 88 testes
+├── tests/                     # 108 testes
 └── docs/
     ├── API_NOTES.md           # comportamentos reais das APIs do IBGE
     └── BANCO.md               # modelo, índices e consultas do PostgreSQL
