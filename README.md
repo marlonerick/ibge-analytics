@@ -145,6 +145,7 @@ ibge-analytics/
 ├── reports/                   # relatorio.html + figuras
 ├── tests/                     # 287 testes
 └── docs/
+    ├── ARQUITETURA.md         # camadas, fluxo ETL, dicionário de dados, stack
     ├── API_NOTES.md           # comportamentos reais das APIs do IBGE
     └── BANCO.md               # modelo, índices e consultas do PostgreSQL
 ```
@@ -206,6 +207,8 @@ formas que comparam todos os pares entre si (dispersão) são facetadas em vez d
 coloridas, e as cores de menor contraste sempre vêm acompanhadas de rótulo
 direto ou tabela. Nenhuma leitura depende só da cor.
 
-Os detalhes de cada peculiaridade das APIs estão em
+As camadas, o fluxo ETL etapa a etapa, o dicionário de dados e o passo a passo
+de reprodução estão em **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**; os
+detalhes de cada peculiaridade das APIs, em
 **[docs/API_NOTES.md](docs/API_NOTES.md)**; as decisões de modelagem e os
 índices, em **[docs/BANCO.md](docs/BANCO.md)**.
