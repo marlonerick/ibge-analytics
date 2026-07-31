@@ -84,12 +84,25 @@ ibge-db query serie_uf --uf SP --csv serie-sp.csv
 ## Testes
 
 ```bash
-pytest              # 102 testes offline
+pytest              # 278 testes offline
 pytest -m network   # + 3 testes contra a API real
 pytest -m postgres  # + 6 testes de integração com o banco
 ```
 
-Os testes de banco são pulados automaticamente quando não há conexão.
+| Arquivo | Cobre |
+|---|---|
+| `test_api.py` | lotes do SIDRA, sentinelas, cache em disco, hierarquia de Localidades |
+| `test_extract.py` | registro de agregados e a janela de anos que cada extração pede |
+| `test_transform.py` | métricas derivadas: CAGR, densidade, concentração, agregação |
+| `test_pipeline.py` | montagem dos painéis: que ano casa com qual, joins, orquestração |
+| `test_analysis.py` | faixas de porte e densidade, rankings, leituras regionais |
+| `test_io.py` | camada de leitura, memoização, inventário × pipeline |
+| `test_dados.py` | **os Parquets em `data/processed/`** — cobertura, coerência e ordens de grandeza |
+| `test_db.py` | configuração, COPY, registro de consultas, coerência SQL × pandas |
+| `test_report.py` | navegação do relatório derivada das seções |
+
+Os testes de banco são pulados automaticamente quando não há conexão, e os de
+dados quando o pipeline ainda não rodou.
 
 ---
 
@@ -130,7 +143,7 @@ ibge-analytics/
 ├── scripts/                   # build_report.py · build_notebooks.py
 ├── data/{raw,interim,processed,geo}/
 ├── reports/                   # relatorio.html + figuras
-├── tests/                     # 108 testes
+├── tests/                     # 287 testes
 └── docs/
     ├── API_NOTES.md           # comportamentos reais das APIs do IBGE
     └── BANCO.md               # modelo, índices e consultas do PostgreSQL
